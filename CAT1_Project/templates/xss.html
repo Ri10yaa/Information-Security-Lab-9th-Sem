@@ -1,0 +1,270 @@
+{% extends "base.html" %}
+{% block title %}XSS Demo{% endblock %}
+
+{% block content %}
+<!-- ── Page header ───────────────────────────────────────────────── -->
+<div class="page-header">
+  <div class="breadcrumb">
+    <a href="{{ url_for('index') }}">Home</a> / <span>Cross-Site Scripting</span>
+  </div>
+  <h1>⚡ Cross-Site Scripting (XSS)</h1>
+  <p>Inject JavaScript into a comment board that runs in every visitor's browser — 
+     then see how HTML escaping makes it completely harmless.</p>
+</div>
+
+<!-- ── Info box ─────────────────────────────────────────────────── -->
+<div class="info-box">
+  <div class="info-section">
+    <h4>What is it?</h4>
+    <p>XSS occurs when user-supplied data is rendered as HTML/JS without sanitisation. 
+    The injected script runs in the victim's browser with the same privileges as the site — 
+    able to steal cookies, redirect, or deface the page.</p>
+  </div>
+  <div class="info-section">
+    <h4>Real-world impact</h4>
+    <p>Samy Worm (MySpace, 2005) — 1 million profiles infected in 20 hours via XSS.
+    British Airways (2018) — card data of 380K customers stolen via injected script.
+    Fix: <strong>Always escape HTML output.</strong></p>
+  </div>
+</div>
+
+<!-- ── Mode toggle ──────────────────────────────────────────────── -->
+<div class="mode-toggle" id="modeToggle">
+  <button class="mode-btn active-vuln" id="btnVuln" onclick="setMode('vuln')">
+    🔴 Vulnerable Mode
+  </button>
+  <button class="mode-btn" id="btnSecure" onclick="setMode('secure')">
+    🟢 Secure Mode
+  </button>
+</div>
+
+<!-- ── Demo layout ──────────────────────────────────────────────── -->
+<div class="demo-layout">
+
+  <!-- LEFT: Comment form -->
+  <div>
+    <div class="alert alert-danger" id="vulnAlert">
+      ⚠️ <strong>Vulnerable Mode:</strong> Comments are rendered as raw HTML. 
+      Any injected <code>&lt;script&gt;</code> tag will execute!
+    </div>
+    <div class="alert alert-success hidden" id="secureAlert">
+      ✅ <strong>Secure Mode:</strong> Input is HTML-escaped before rendering. 
+      Tags like <code>&lt;script&gt;</code> appear as plain text.
+    </div>
+
+    <div class="panel">
+      <div class="panel-header vuln" id="formHeader">📝 Comment Board — Vulnerable</div>
+      <div class="panel-body">
+
+        <!-- Attack payloads -->
+        <div id="payloadsSection">
+          <p class="section-title" style="font-size:0.7rem; margin-bottom:0.5rem">⚡ Click a payload</p>
+          <div class="payload-chips">
+            <span class="chip" data-target="content"
+              data-value="<script>alert('XSS! You have been hacked!')</script>">
+              alert() injection
+            </span>
+            <span class="chip" data-target="content"
+              data-value="<img src=x onerror=&quot;alert('Cookie: '+document.cookie)&quot;>">
+              cookie stealer
+            </span>
+            <span class="chip" data-target="content"
+              data-value="<b style='color:red;font-size:2rem'>Page Defaced! 😈</b>">
+              page defacement
+            </span>
+          </div>
+        </div>
+
+        <form id="commentForm" onsubmit="submitComment(event)">
+          <div class="form-group">
+            <label for="author">Your Name</label>
+            <input type="text" class="form-control" id="author" name="author"
+                   placeholder="e.g. Alice" value="Attacker" />
+          </div>
+          <div class="form-group">
+            <label for="content">Comment</label>
+            <textarea class="form-control" id="content" name="content"
+                      placeholder="Write a comment... or inject some JS "
+                      rows="3"></textarea>
+          </div>
+          <div style="display:flex; gap:0.5rem">
+            <button type="submit" class="btn btn-danger" id="submitBtn" style="flex:1">
+              <span id="btnIcon">⚡</span>
+              <span id="btnText">Post Comment</span>
+            </button>
+            <button type="button" class="btn btn-outline btn-sm" onclick="resetComments()">
+              ↺ Reset
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Payload explanation -->
+    <div class="panel mt-2">
+      <div class="panel-header output">💡 How the Payloads Work</div>
+      <div class="panel-body" style="font-size:0.85rem; color:var(--text-secondary); line-height:1.8">
+        <p><span class="text-red">▸ alert()</span> — Proves JS executes in browser context.</p>
+        <p><span class="text-red">▸ onerror</span> — Triggers on broken image load; steals <code>document.cookie</code>.</p>
+        <p><span class="text-yellow">▸ Defacement</span> — Injected HTML changes how the page looks for all users.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT: Comment board output -->
+  <div>
+    <div class="panel">
+      <div class="panel-header output" id="boardHeader">📋 Live Comment Board</div>
+      <div class="panel-body">
+        <div id="statusMsg" class="mb-2"></div>
+        <div class="comment-list" id="commentList">
+          {% for c in comments %}
+          <div class="comment-item">
+            <div class="comment-author">{{ c['author'] }}</div>
+            <div class="comment-text">{{ c['content'] }}</div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ── Code diff ─────────────────────────────────────────────────── -->
+<div class="diff-section">
+  <p class="section-title">💻 Code Diff — What Changes</p>
+  <div class="diff-grid">
+
+    <div class="panel">
+      <div class="panel-header vuln"> Vulnerable — Raw innerHTML</div>
+      <div class="panel-body">
+        <div class="code-block">
+<span class="cm"># Python — stores raw content</span>
+<span class="var">content</span> = request.form[<span class="str">'content'</span>]
+db.<span class="fn">execute</span>(<span class="str">"INSERT INTO comments
+  VALUES (?, ?)"</span>, (author, <span class="bad">content</span>))
+
+<span class="cm">// JavaScript — renders as HTML</span>
+div.innerHTML = <span class="bad">comment.content</span>
+<span class="cm">//  &lt;script&gt; tags EXECUTE here</span>
+        </div>
+        <div class="alert alert-danger mt-2" style="font-size:0.82rem">
+           <code>innerHTML</code> parses HTML — any script in the comment runs immediately.
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header secure">✅ Secure — HTML Escaping</div>
+      <div class="panel-body">
+        <div class="code-block">
+<span class="cm"># Python — escape before storing</span>
+<span class="kw">import</span> html
+<span class="var">content</span> = <span class="good">html.escape(</span>request.form[<span class="str">'content'</span>]<span class="good">)</span>
+db.<span class="fn">execute</span>(<span class="str">"INSERT INTO comments
+  VALUES (?, ?)"</span>, (author, <span class="good">content</span>))
+
+<span class="cm">// JavaScript — safe rendering</span>
+div.textContent = <span class="good">comment.content</span>
+<span class="cm">// ✅ &lt;script&gt; shown as text, not run</span>
+        </div>
+        <div class="alert alert-success mt-2" style="font-size:0.82rem">
+          ✅ <code>html.escape()</code> converts <code>&lt;</code> → <code>&amp;lt;</code> — 
+          tags are displayed, never executed.
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  let currentMode = 'vuln';
+
+  function setMode(mode) {
+    currentMode = mode;
+    const isVuln = mode === 'vuln';
+
+    document.getElementById('btnVuln').className   = 'mode-btn ' + (isVuln ? 'active-vuln' : '');
+    document.getElementById('btnSecure').className = 'mode-btn ' + (!isVuln ? 'active-secure' : '');
+    document.getElementById('vulnAlert').classList.toggle('hidden', !isVuln);
+    document.getElementById('secureAlert').classList.toggle('hidden', isVuln);
+    document.getElementById('payloadsSection').classList.toggle('hidden', !isVuln);
+
+    const fh = document.getElementById('formHeader');
+    fh.textContent = isVuln ? '📝 Comment Board — Vulnerable' : '📝 Comment Board — Secure';
+    fh.className   = 'panel-header ' + (isVuln ? 'vuln' : 'secure');
+
+    document.getElementById('submitBtn').className = 'btn ' + (isVuln ? 'btn-danger' : 'btn-success');
+    document.getElementById('btnIcon').textContent = isVuln ? '⚡' : '🔒';
+    document.getElementById('btnText').textContent = isVuln ? 'Post Comment' : 'Post Comment (Safe)';
+    document.getElementById('statusMsg').innerHTML = '';
+  }
+
+  async function submitComment(e) {
+    e.preventDefault();
+    const btn = document.getElementById('submitBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Posting...';
+
+    const fd  = new FormData(document.getElementById('commentForm'));
+    const url = currentMode === 'vuln' ? '/xss/vulnerable' : '/xss/secure';
+
+    try {
+      const data = await postData(url, fd);
+      renderComments(data.comments, data.escaped);
+
+      const msg = document.getElementById('statusMsg');
+      msg.innerHTML = `<div class="alert ${data.escaped ? 'alert-success' : 'alert-danger'}">${data.message}</div>`;
+
+      showToast(
+        data.escaped ? '✅ Comment sanitised — safe.' : '⚠️ Unsanitised comment posted!',
+        data.escaped ? 'success' : 'danger'
+      );
+
+      document.getElementById('content').value = '';
+    } catch (err) {
+      showToast('Error: ' + err.message, 'danger');
+    }
+
+    btn.disabled = false;
+    btn.innerHTML = `<span>${currentMode === 'vuln' ? '⚡' : '🔒'}</span> ${currentMode === 'vuln' ? 'Post Comment' : 'Post Comment (Safe)'}`;
+  }
+
+  function renderComments(comments, escaped) {
+    const list = document.getElementById('commentList');
+    list.innerHTML = '';
+    comments.forEach(c => {
+      const item = document.createElement('div');
+      item.className = 'comment-item';
+
+      const author = document.createElement('div');
+      author.className = 'comment-author';
+      author.textContent = c.author;  // always safe
+
+      const text = document.createElement('div');
+      text.className = 'comment-text';
+
+      if (escaped) {
+        // Safe: render as plain text
+        text.textContent = c.content;
+      } else {
+        // Vulnerable: render raw HTML — scripts execute!
+        text.innerHTML = c.content;
+      }
+
+      item.appendChild(author);
+      item.appendChild(text);
+      list.prepend(item);
+    });
+  }
+
+  async function resetComments() {
+    await fetch('/xss/reset', { method: 'POST' });
+    location.reload();
+  }
+</script>
+{% endblock %}

@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}SecureLab{% endblock %} — IS Lab Security Demo</title>
+  <meta name="description" content="Interactive simulation of SQL Injection, XSS, and Parameter Tampering web security attacks for IS Lab CAT1." />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+  {% block head %}{% endblock %}
+</head>
+<body>
+
+  <!-- ── Navbar ──────────────────────────────────────────────────── -->
+  <nav class="navbar">
+    <a class="nav-brand" href="{{ url_for('index') }}">
+      <span class="shield-icon">🛡️</span>
+      SecureLab
+    </a>
+    <ul class="nav-links">
+      <li><a href="{{ url_for('index') }}">🏠 Home</a></li>
+      <li><a href="{{ url_for('sql_injection') }}">💉 SQL Injection</a></li>
+      <li><a href="{{ url_for('xss') }}">⚡ XSS</a></li>
+      <li><a href="{{ url_for('parameter_tampering') }}">🔀 Param Tampering</a></li>
+    </ul>
+  </nav>
+
+  <!-- ── Main ────────────────────────────────────────────────────── -->
+  <main class="main-content">
+    {% block content %}{% endblock %}
+  </main>
+
+  <!-- ── Footer ──────────────────────────────────────────────────── -->
+  <footer class="footer">
+    <p>🛡️ <strong>SecureLab</strong> — IS Lab CAT1 Project &nbsp;|&nbsp; For educational purposes only</p>
+  </footer>
+
+  <!-- ── Toast container ─────────────────────────────────────────── -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

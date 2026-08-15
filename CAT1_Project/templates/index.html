@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% block title %}SecureLab — Home{% endblock %}
+
+{% block content %}
+<!-- ══ HERO ════════════════════════════════════════════════════════ -->
+<section class="hero">
+  <div class="hero-badge">
+    IS Lab CAT1 Project
+  </div>
+  <h1>Web Security<br/>Attack Simulations</h1>
+  <p>
+    An interactive demonstration of 3 critical web vulnerabilities — 
+    live attack mode, secure mode, and real-world rectification explained.
+  </p>
+</section>
+
+<!-- ── Stats ────────────────────────────────────────────────────── -->
+<div class="stats-bar">
+  <div class="stat">
+    <div class="stat-value">3</div>
+    <div class="stat-label">Attacks Simulated</div>
+  </div>
+  <div class="stat">
+    <div class="stat-value">3</div>
+    <div class="stat-label">Rectifications Shown</div>
+  </div>
+  <div class="stat">
+    <div class="stat-value">OWASP</div>
+    <div class="stat-label">Industry Standard</div>
+  </div>
+  <div class="stat">
+    <div class="stat-value">Live</div>
+    <div class="stat-label">Interactive Demo</div>
+  </div>
+</div>
+
+<!-- ── Attack Cards ─────────────────────────────────────────────── -->
+<p class="section-title" style="margin-bottom:1.5rem">Choose an Attack to Simulate</p>
+
+<div class="attacks-grid">
+
+  <!-- SQL Injection -->
+  <a class="attack-card sql" href="{{ url_for('sql_injection') }}">
+    <span class="card-icon">💉</span>
+    <div class="card-number">Attack 01 · OWASP A03</div>
+    <h2>SQL Injection</h2>
+    <p>
+      Manipulate a banking login form's SQL query by injecting malicious 
+      input — bypassing authentication entirely without knowing the password.
+    </p>
+    <div class="card-tags">
+      <span class="tag danger">Authentication Bypass</span>
+      <span class="tag info">SQLite</span>
+      <span class="tag danger">Critical</span>
+    </div>
+    <div class="card-cta">
+      Launch Demo <span>→</span>
+    </div>
+  </a>
+
+  <!-- XSS -->
+  <a class="attack-card xss" href="{{ url_for('xss') }}">
+    <span class="card-icon">⚡</span>
+    <div class="card-number">Attack 02 · OWASP A03</div>
+    <h2>Cross-Site Scripting</h2>
+    <p>
+      Inject JavaScript into a comment board that executes in every visitor's 
+      browser — from alert boxes to simulated cookie theft.
+    </p>
+    <div class="card-tags">
+      <span class="tag warn">Script Injection</span>
+      <span class="tag warn">Cookie Theft</span>
+      <span class="tag warn">High</span>
+    </div>
+    <div class="card-cta">
+      Launch Demo <span>→</span>
+    </div>
+  </a>
+
+  <!-- Parameter Tampering -->
+  <a class="attack-card param" href="{{ url_for('parameter_tampering') }}">
+    <span class="card-icon">🔀</span>
+    <div class="card-number">Attack 03 · OWASP A04</div>
+    <h2>Parameter Tampering</h2>
+    <p>
+      Modify a hidden price field in an e-commerce form to buy a ₹1,29,999 
+      iPhone for ₹1 — exploiting blind trust in client-side data.
+    </p>
+    <div class="card-tags">
+      <span class="tag purple">Client Trust</span>
+      <span class="tag purple">Business Logic</span>
+      <span class="tag purple">High</span>
+    </div>
+    <div class="card-cta">
+      Launch Demo <span>→</span>
+    </div>
+  </a>
+
+</div>
+
+<!-- ── How It Works ──────────────────────────────────────────────── -->
+<div style="margin-top:4rem">
+  <p class="section-title">How Each Demo Works</p>
+  <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:1rem;">
+
+    <div class="panel">
+      <div class="panel-header vuln">🔴 Vulnerable Mode</div>
+      <div class="panel-body" style="font-size:0.88rem; color:var(--text-secondary)">
+        The application behaves insecurely — just like a real vulnerable website. 
+        Try the attack payload and watch it succeed.
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header secure">🟢 Secure Mode</div>
+      <div class="panel-body" style="font-size:0.88rem; color:var(--text-secondary)">
+        The same form with proper defenses. The same payload is now harmless — 
+        showing the exact fix needed in production code.
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header code">💻 Code Diff</div>
+      <div class="panel-body" style="font-size:0.88rem; color:var(--text-secondary)">
+        See the before-and-after code change that stops the attack — 
+        color-coded to highlight exactly what was fixed.
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header output">📟 Live Output</div>
+      <div class="panel-body" style="font-size:0.88rem; color:var(--text-secondary)">
+        A terminal-style panel shows the exact SQL query executed, 
+        raw response data, and whether the attack succeeded or was blocked.
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

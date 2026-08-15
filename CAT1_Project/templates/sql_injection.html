@@ -1,0 +1,265 @@
+{% extends "base.html" %}
+{% block title %}SQL Injection Demo{% endblock %}
+
+{% block content %}
+<!-- ── Page header ───────────────────────────────────────────────── -->
+<div class="page-header">
+  <div class="breadcrumb">
+    <a href="{{ url_for('index') }}">Home</a> / <span>SQL Injection</span>
+  </div>
+  <h1>💉 SQL Injection Attack</h1>
+  <p>Inject malicious SQL into a login form to bypass authentication — 
+     then see how parameterized queries stop it cold.</p>
+</div>
+
+<!-- ── Info box ─────────────────────────────────────────────────── -->
+<div class="info-box">
+  <div class="info-section">
+    <h4>What is it?</h4>
+    <p>SQL Injection occurs when user-supplied input is embedded directly 
+    into a SQL query string. An attacker can alter query logic to bypass 
+    authentication, dump tables, or delete data.</p>
+  </div>
+  <div class="info-section">
+    <h4>Real-world impact</h4>
+    <p>Heartland Payment Systems (2008) — 134M card records stolen via SQLi.
+    Ranked <strong>#1 in OWASP Top 10</strong> for years. 
+    Fix: <strong>Always use parameterized queries.</strong></p>
+  </div>
+</div>
+
+<!-- ── Mode toggle ──────────────────────────────────────────────── -->
+<div class="mode-toggle" id="modeToggle">
+  <button class="mode-btn active-vuln" id="btnVuln" onclick="setMode('vuln')">
+    🔴 Vulnerable Mode
+  </button>
+  <button class="mode-btn" id="btnSecure" onclick="setMode('secure')">
+    🟢 Secure Mode
+  </button>
+</div>
+
+<!-- ── Demo layout ──────────────────────────────────────────────── -->
+<div class="demo-layout">
+
+  <!-- LEFT: Login form -->
+  <div>
+    <!-- Vulnerable alert -->
+    <div class="alert alert-danger" id="vulnAlert">
+      ⚠️ <strong>Vulnerable Mode Active:</strong> The login query uses raw string 
+      concatenation. Try the payloads below to bypass authentication.
+    </div>
+    <div class="alert alert-success hidden" id="secureAlert">
+      ✅ <strong>Secure Mode Active:</strong> The login now uses parameterized queries. 
+      The same payloads are treated as plain text — no bypass possible.
+    </div>
+
+    <!-- Fake bank login -->
+    <div class="panel">
+      <div class="panel-header vuln" id="formHeader">🏦 FakeBank — Vulnerable Login</div>
+      <div class="panel-body">
+
+        <!-- Attack payloads -->
+        <div id="payloadsSection">
+          <p class="section-title" style="font-size:0.7rem; margin-bottom:0.5rem">⚡ Click a payload to auto-fill</p>
+          <div class="payload-chips">
+            <span class="chip" data-target="username" data-value="admin' --">admin' --</span>
+            <span class="chip" data-target="username" data-value="' OR '1'='1">' OR '1'='1</span>
+            <span class="chip" data-target="username" data-value="admin' OR 1=1 --">admin' OR 1=1 --</span>
+            <span class="chip" data-target="password" data-value="' OR ''='">Pass: ' OR ''='</span>
+          </div>
+        </div>
+
+        <form id="loginForm" onsubmit="submitLogin(event)">
+          <div class="form-group">
+            <label for="username">Username</label>
+            <input type="text" class="form-control" id="username" name="username"
+                   placeholder="Enter username" autocomplete="off" />
+          </div>
+          <div class="form-group">
+            <label for="password">Password</label>
+            <input type="text" class="form-control" id="password" name="password"
+                   placeholder="Enter password" autocomplete="off" />
+          </div>
+          <button type="submit" class="btn btn-danger w-full" id="submitBtn">
+            <span id="btnIcon">💉</span>
+            <span id="btnText">Attempt Login</span>
+          </button>
+        </form>
+
+        <div id="resultBadge" class="mt-2"></div>
+      </div>
+    </div>
+
+    <!-- Hint box -->
+    <div class="alert alert-warn mt-2">
+      💡 <strong>Tip:</strong> Try username <code>admin' --</code> with any password. 
+      The <code>--</code> comments out the password check in the SQL query.
+    </div>
+  </div>
+
+  <!-- RIGHT: Live terminal output -->
+  <div>
+    <div class="panel">
+      <div class="panel-header output">📟 Live Query Output</div>
+      <div class="panel-body">
+        <p class="section-title" style="font-size:0.7rem">SQL query executed on server</p>
+        <div class="terminal" id="queryTerminal">
+          <div class="line">
+            <span class="prompt">db&gt;</span>
+            <span class="text muted">Waiting for login attempt...</span>
+          </div>
+          <span class="blinking-cursor"></span>
+        </div>
+
+        <p class="section-title" style="font-size:0.7rem; margin-top:1rem">Server response</p>
+        <div class="terminal" id="responseTerminal" style="min-height:80px">
+          <div class="line">
+            <span class="prompt">→</span>
+            <span class="text muted">No request yet.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ── Code diff ─────────────────────────────────────────────────── -->
+<div class="diff-section">
+  <p class="section-title">💻 Code Diff — What Changes</p>
+  <div class="diff-grid">
+
+    <div class="panel">
+      <div class="panel-header vuln">❌ Vulnerable Code</div>
+      <div class="panel-body">
+        <div class="code-block">
+<span class="cm"># ⚠️  DANGEROUS — string concatenation</span>
+
+<span class="var">username</span> = request.form[<span class="str">'username'</span>]
+<span class="var">password</span> = request.form[<span class="str">'password'</span>]
+
+<span class="var">query</span> = <span class="str">f"SELECT * FROM users
+  WHERE username=<span class="bad">'{username}'</span>
+  AND password=<span class="bad">'{password}'</span>"</span>
+
+<span class="var">result</span> = db.<span class="fn">execute</span>(<span class="var">query</span>)
+        </div>
+        <div class="alert alert-danger mt-2" style="font-size:0.82rem">
+          ☠️ Input like <code>admin' --</code> becomes part of the query logic — 
+          bypasses the password check entirely.
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header secure"> Secure Code</div>
+      <div class="panel-body">
+        <div class="code-block">
+<span class="cm">#  SAFE — parameterized query</span>
+
+<span class="var">username</span> = request.form[<span class="str">'username'</span>]
+<span class="var">password</span> = request.form[<span class="str">'password'</span>]
+
+<span class="var">query</span> = <span class="str">"SELECT * FROM users
+  WHERE username=<span class="good">?</span>
+  AND password=<span class="good">?</span>"</span>
+
+<span class="var">result</span> = db.<span class="fn">execute</span>(<span class="var">query</span>, (<span class="var">username</span>, <span class="var">password</span>))
+        </div>
+        <div class="alert alert-success mt-2" style="font-size:0.82rem">
+           The DB treats user input as a <em>value</em>, never as SQL code. 
+          Any injection attempt is neutralized.
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  let currentMode = 'vuln';
+
+  function setMode(mode) {
+    currentMode = mode;
+    const isVuln = mode === 'vuln';
+
+    document.getElementById('btnVuln').className   = 'mode-btn ' + (isVuln ? 'active-vuln' : '');
+    document.getElementById('btnSecure').className = 'mode-btn ' + (!isVuln ? 'active-secure' : '');
+
+    document.getElementById('vulnAlert').classList.toggle('hidden', !isVuln);
+    document.getElementById('secureAlert').classList.toggle('hidden', isVuln);
+    document.getElementById('payloadsSection').classList.toggle('hidden', !isVuln);
+
+    const header = document.getElementById('formHeader');
+    if (isVuln) {
+      header.textContent = '🏦 FakeBank — Vulnerable Login';
+      header.className   = 'panel-header vuln';
+    } else {
+      header.textContent = '🏦 FakeBank — Secure Login';
+      header.className   = 'panel-header secure';
+    }
+
+    document.getElementById('submitBtn').className =
+      'btn w-full ' + (isVuln ? 'btn-danger' : 'btn-success');
+    document.getElementById('btnIcon').textContent = isVuln ? '💉' : '🔒';
+    document.getElementById('btnText').textContent = isVuln ? 'Attempt Login' : 'Secure Login';
+
+    clearTerminal('queryTerminal');
+    clearTerminal('responseTerminal');
+    document.getElementById('resultBadge').innerHTML = '';
+
+    termLine(document.getElementById('queryTerminal'), 'db>', 'Mode switched — ready.', 'muted');
+  }
+
+  async function submitLogin(e) {
+    e.preventDefault();
+    const btn  = document.getElementById('submitBtn');
+    const qTerm = document.getElementById('queryTerminal');
+    const rTerm = document.getElementById('responseTerminal');
+    const badge = document.getElementById('resultBadge');
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Sending...';
+    clearTerminal('queryTerminal');
+    clearTerminal('responseTerminal');
+    badge.innerHTML = '';
+
+    const fd = new FormData(document.getElementById('loginForm'));
+    const url = currentMode === 'vuln'
+      ? '/sql-injection/vulnerable'
+      : '/sql-injection/secure';
+
+    try {
+      const data = await postData(url, fd);
+
+      // Show query
+      termLine(qTerm, 'db>', data.query, data.attack_worked ? 'warn' : '');
+
+      // Show result
+      if (data.status === 'success') {
+        termLine(rTerm, '→', data.message, data.attack_worked ? 'warn' : 'success');
+        if (data.user) {
+          termLine(rTerm, '  ', `Role: ${data.user.role}  |  Balance: ₹${Number(data.user.balance).toLocaleString('en-IN')}`, 'warn');
+        }
+        if (data.attack_worked) {
+          badge.innerHTML = '<span class="result-badge attack">🚨 ATTACK SUCCEEDED — Auth bypassed!</span>';
+          showToast('🚨 SQL Injection worked! Auth bypassed.', 'danger');
+        } else {
+          badge.innerHTML = '<span class="result-badge blocked">✅ Blocked — Parameterized query neutralized it</span>';
+          showToast('✅ Secure — injection blocked.', 'success');
+        }
+      } else {
+        termLine(rTerm, '→', data.message, 'error');
+        badge.innerHTML = '<span class="result-badge blocked">🔒 Login Failed</span>';
+      }
+    } catch (err) {
+      termLine(rTerm, '!', `Error: ${err.message}`, 'error');
+    }
+
+    btn.disabled = false;
+    btn.innerHTML = `<span>${currentMode === 'vuln' ? '💉' : '🔒'}</span> ${currentMode === 'vuln' ? 'Attempt Login' : 'Secure Login'}`;
+  }
+</script>
+{% endblock %}

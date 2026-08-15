@@ -1,0 +1,354 @@
+{% extends "base.html" %}
+{% block title %}Parameter Tampering Demo{% endblock %}
+
+{% block content %}
+<!-- ── Page header ───────────────────────────────────────────────── -->
+<div class="page-header">
+  <div class="breadcrumb">
+    <a href="{{ url_for('index') }}">Home</a> / <span>Parameter Tampering</span>
+  </div>
+  <h1>🔀 Parameter Tampering</h1>
+  <p>Modify a hidden price field before form submission to buy a ₹1,29,999 iPhone for ₹1 — 
+     then see how server-side validation stops it.</p>
+</div>
+
+<!-- ── Info box ─────────────────────────────────────────────────── -->
+<div class="info-box">
+  <div class="info-section">
+    <h4>What is it?</h4>
+    <p>Parameter Tampering exploits the fact that web forms pass data 
+    (prices, IDs, discounts) to the server via hidden fields or URL params. 
+    Attackers intercept and modify these values before submission.</p>
+  </div>
+  <div class="info-section">
+    <h4>Real-world impact</h4>
+    <p>E-commerce sites have lost millions to price tampering — attackers buy 
+    items at manipulated prices. OWASP A04: Insecure Design.
+    Fix: <strong>Never trust client-supplied prices — always validate server-side.</strong></p>
+  </div>
+</div>
+
+<!-- ── Mode toggle ──────────────────────────────────────────────── -->
+<div class="mode-toggle" id="modeToggle">
+  <button class="mode-btn active-vuln" id="btnVuln" onclick="setMode('vuln')">
+    🔴 Vulnerable Mode
+  </button>
+  <button class="mode-btn" id="btnSecure" onclick="setMode('secure')">
+    🟢 Secure Mode
+  </button>
+</div>
+
+<!-- ── Demo layout ──────────────────────────────────────────────── -->
+<div class="demo-layout">
+
+  <!-- LEFT: Shop form -->
+  <div>
+    <div class="alert alert-danger" id="vulnAlert">
+      ⚠️ <strong>Vulnerable Mode:</strong> The price is in a hidden form field. 
+      Edit it in DevTools (or use the tamper buttons below) before clicking Buy!
+    </div>
+    <div class="alert alert-success hidden" id="secureAlert">
+      ✅ <strong>Secure Mode:</strong> The server ignores the client price entirely. 
+      It fetches the real price from the DB — tampering is detected and blocked.
+    </div>
+
+    <div class="panel">
+      <div class="panel-header vuln" id="formHeader">🛒 ShopVuln — Buy Now</div>
+      <div class="panel-body">
+
+        <!-- Product selection -->
+        <p class="section-title" style="font-size:0.7rem; margin-bottom:0.75rem">Select a Product</p>
+        <div class="product-grid" id="productGrid">
+          {% for p in products %}
+          <div class="product-card" id="prod-{{ p['id'] }}"
+               onclick="selectProduct({{ p['id'] }}, '{{ p['name'] }}', {{ p['price'] }})">
+            <div class="product-name">{{ p['name'] }}</div>
+            <div class="product-price">₹{{ '{:,.0f}'.format(p['price']) }}</div>
+          </div>
+          {% endfor %}
+        </div>
+
+        <form id="orderForm" onsubmit="submitOrder(event)">
+          <input type="hidden" id="product_id"   name="product_id"   value="" />
+          <input type="hidden" id="product_name" name="product_name" value="" />
+
+          <!-- Price field — visible for demo; normally hidden -->
+          <div class="form-group">
+            <label for="price" style="display:flex; align-items:center; gap:8px">
+              Price (hidden field)
+              <span id="vulnBadge" class="tag danger" style="text-transform:none; letter-spacing:0">
+                ← attacker edits this
+              </span>
+            </label>
+            <input type="number" class="form-control font-mono" id="price" name="price"
+                   value="" step="0.01" min="0" readonly />
+          </div>
+
+          <!-- Tamper buttons (demo shortcut — simulates DevTools edit) -->
+          <div id="tamperSection">
+            <p class="section-title" style="font-size:0.7rem; margin-bottom:0.5rem">⚡ Simulate DevTools Tampering</p>
+            <div style="display:flex; gap:0.5rem; flex-wrap:wrap; margin-bottom:1rem">
+              <button type="button" class="btn btn-outline btn-sm" onclick="tamperPrice(1)">
+                Set Price = ₹1
+              </button>
+              <button type="button" class="btn btn-outline btn-sm" onclick="tamperPrice(0)">
+                Set Price = ₹0 (Free!)
+              </button>
+              <button type="button" class="btn btn-outline btn-sm" onclick="restorePrice()">
+                ↺ Restore Real Price
+              </button>
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-danger w-full" id="submitBtn" disabled>
+            <span id="btnIcon">🔀</span>
+            <span id="btnText">Place Order</span>
+          </button>
+        </form>
+
+        <div id="orderResult" class="mt-2"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT: Order log & terminal -->
+  <div>
+    <div class="panel">
+      <div class="panel-header output">📟 Order Processing Log</div>
+      <div class="panel-body">
+        <p class="section-title" style="font-size:0.7rem">Live server response</p>
+        <div class="terminal" id="orderTerminal" style="min-height:130px">
+          <div class="line"><span class="prompt">→</span><span class="text muted">Select a product and place an order...</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel mt-2">
+      <div class="panel-header code">🗂️ Recent Orders</div>
+      <div class="panel-body">
+        <div class="order-row order-header">
+          <span>Product</span><span>Real ₹</span><span>Paid ₹</span><span>Status</span>
+        </div>
+        <div id="orderLog">
+          {% for o in orders %}
+          <div class="order-row {{ 'tampered-row' if o['tampered'] else 'legit-row' }}">
+            <span style="font-size:0.8rem; color:var(--text-primary)">{{ o['product_name'][:18] }}</span>
+            <span class="text-muted">₹{{ '{:,.0f}'.format(o['real_price']) }}</span>
+            <span class="{{ 'text-red' if o['tampered'] else 'text-green' }}">
+              ₹{{ '{:,.0f}'.format(o['paid_price']) }}
+            </span>
+            <span>
+              {% if o['tampered'] %}
+                <span class="tag danger" style="font-size:0.65rem">TAMPERED</span>
+              {% else %}
+                <span class="tag info" style="font-size:0.65rem">OK</span>
+              {% endif %}
+            </span>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ── Code diff ─────────────────────────────────────────────────── -->
+<div class="diff-section">
+  <p class="section-title">💻 Code Diff — What Changes</p>
+  <div class="diff-grid">
+
+    <div class="panel">
+      <div class="panel-header vuln">❌ Vulnerable — Trusts Client</div>
+      <div class="panel-body">
+        <div class="code-block">
+<span class="cm"># ⚠️  Reads price from the FORM</span>
+<span class="cm">#    (client can change this!)</span>
+
+<span class="var">paid_price</span> = request.form.get(
+    <span class="str">'price'</span>, type=float   <span class="cm"># ← from client</span>
+)
+
+db.<span class="fn">execute</span>(<span class="str">"INSERT INTO orders
+  VALUES (?, <span class="bad">?</span>)"</span>,
+  (product_name, <span class="bad">paid_price</span>))
+        </div>
+        <div class="alert alert-danger mt-2" style="font-size:0.82rem">
+          ☠️ Client sends <code>price=1</code> → order recorded at ₹1. 
+          The server never checks the real price.
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header secure">✅ Secure — Server Validates</div>
+      <div class="panel-body">
+        <div class="code-block">
+<span class="cm"># ✅  Ignores client price ENTIRELY</span>
+<span class="cm">#    Fetches real price from DB</span>
+
+<span class="var">product_id</span> = request.form.get(<span class="str">'product_id'</span>)
+<span class="var">row</span> = db.<span class="fn">execute</span>(
+    <span class="str">"SELECT price FROM products WHERE id=?"</span>,
+    (product_id,)
+)
+<span class="var">server_price</span> = <span class="good">row['price']</span>  <span class="cm"># ← from DB</span>
+
+db.<span class="fn">execute</span>(<span class="str">"INSERT INTO orders
+  VALUES (?, <span class="good">?</span>)"</span>,
+  (product_name, <span class="good">server_price</span>))
+        </div>
+        <div class="alert alert-success mt-2" style="font-size:0.82rem">
+          ✅ Client price is completely ignored. The authoritative DB price is always used.
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  let currentMode = 'vuln';
+  let realPrice = 0;
+  let selectedId = null;
+  let selectedName = '';
+
+  function selectProduct(id, name, price) {
+    selectedId   = id;
+    selectedName = name;
+    realPrice    = price;
+
+    document.querySelectorAll('.product-card').forEach(c => c.classList.remove('selected'));
+    document.getElementById('prod-' + id).classList.add('selected');
+
+    document.getElementById('product_id').value   = id;
+    document.getElementById('product_name').value = name;
+    document.getElementById('price').value        = price.toFixed(2);
+
+    document.getElementById('submitBtn').disabled = false;
+    clearTerminal('orderTerminal');
+    termLine(document.getElementById('orderTerminal'), '→',
+      `Selected: ${name} @ ₹${price.toLocaleString('en-IN')}`, 'muted');
+  }
+
+  function tamperPrice(val) {
+    if (selectedId === null) { showToast('Select a product first!', 'warn'); return; }
+    document.getElementById('price').value = val.toFixed(2);
+    const t = document.getElementById('orderTerminal');
+    termLine(t, '⚡', `[DevTools] price field changed: ₹${realPrice.toLocaleString('en-IN')} → ₹${val}`, 'warn');
+    showToast(`Price tampered to ₹${val}!`, 'warn');
+  }
+
+  function restorePrice() {
+    document.getElementById('price').value = realPrice.toFixed(2);
+    termLine(document.getElementById('orderTerminal'), '↺', 'Price restored to real value.', 'muted');
+  }
+
+  function setMode(mode) {
+    currentMode = mode;
+    const isVuln = mode === 'vuln';
+
+    document.getElementById('btnVuln').className   = 'mode-btn ' + (isVuln ? 'active-vuln' : '');
+    document.getElementById('btnSecure').className = 'mode-btn ' + (!isVuln ? 'active-secure' : '');
+    document.getElementById('vulnAlert').classList.toggle('hidden', !isVuln);
+    document.getElementById('secureAlert').classList.toggle('hidden', isVuln);
+    document.getElementById('tamperSection').classList.toggle('hidden', !isVuln);
+    document.getElementById('vulnBadge').classList.toggle('hidden', !isVuln);
+
+    const fh = document.getElementById('formHeader');
+    fh.textContent = isVuln ? '🛒 ShopVuln — Buy Now' : '🛒 SecureShop — Buy Now';
+    fh.className   = 'panel-header ' + (isVuln ? 'vuln' : 'secure');
+
+    document.getElementById('submitBtn').className =
+      'btn w-full ' + (isVuln ? 'btn-danger' : 'btn-success');
+    document.getElementById('btnIcon').textContent = isVuln ? '🔀' : '🔒';
+    document.getElementById('btnText').textContent = isVuln ? 'Place Order' : 'Place Secure Order';
+
+    // restore real price
+    if (selectedId !== null) document.getElementById('price').value = realPrice.toFixed(2);
+    document.getElementById('orderResult').innerHTML = '';
+  }
+
+  async function submitOrder(e) {
+    e.preventDefault();
+    if (selectedId === null) { showToast('Select a product first!', 'warn'); return; }
+
+    const btn = document.getElementById('submitBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Processing...';
+
+    const fd  = new FormData(document.getElementById('orderForm'));
+    const url = currentMode === 'vuln'
+      ? '/parameter-tampering/vulnerable'
+      : '/parameter-tampering/secure';
+
+    try {
+      const data = await postData(url, fd);
+      const t = document.getElementById('orderTerminal');
+      clearTerminal('orderTerminal');
+
+      if (currentMode === 'vuln') {
+        termLine(t, 'db>', `Product: ${data.product}`, '');
+        termLine(t, 'db>', `Real Price:  ₹${Number(data.real_price).toLocaleString('en-IN')}`, '');
+        termLine(t, 'db>', `Paid Price:  ₹${Number(data.paid_price).toLocaleString('en-IN')}`,
+          data.tampered ? 'warn' : 'success');
+        termLine(t, '→', data.message, data.tampered ? 'warn' : 'success');
+
+        const res = document.getElementById('orderResult');
+        if (data.tampered) {
+          res.innerHTML = `<span class="result-badge attack">🚨 TAMPERED! Paid ₹${Number(data.paid_price).toLocaleString('en-IN')} for ₹${Number(data.real_price).toLocaleString('en-IN')} item!</span>`;
+          showToast('🚨 Price tampered — order placed at fake price!', 'danger');
+        } else {
+          res.innerHTML = `<span class="result-badge blocked">✅ Legit order at ₹${Number(data.paid_price).toLocaleString('en-IN')}</span>`;
+          showToast('Order placed.', 'success');
+        }
+      } else {
+        termLine(t, 'db>', `Product: ${data.product}`, '');
+        termLine(t, 'db>', `Client sent: ₹${Number(data.client_price).toLocaleString('en-IN')}`,
+          data.tampered_attempt ? 'warn' : 'muted');
+        termLine(t, 'db>', `Server price (DB): ₹${Number(data.server_price).toLocaleString('en-IN')}`, 'success');
+        termLine(t, '→', data.message, 'success');
+
+        const res = document.getElementById('orderResult');
+        if (data.tampered_attempt) {
+          res.innerHTML = `<span class="result-badge blocked">🔒 Tampering BLOCKED — Charged ₹${Number(data.server_price).toLocaleString('en-IN')}</span>`;
+          showToast('✅ Tampering detected and blocked!', 'success');
+        } else {
+          res.innerHTML = `<span class="result-badge blocked">✅ Secure order at ₹${Number(data.server_price).toLocaleString('en-IN')}</span>`;
+          showToast('Secure order placed.', 'success');
+        }
+      }
+
+      // Refresh order log
+      const orders = await fetch('/parameter-tampering/orders').then(r => r.json());
+      renderOrderLog(orders);
+
+    } catch (err) {
+      showToast('Error: ' + err.message, 'danger');
+    }
+
+    btn.disabled = false;
+    btn.innerHTML = `<span>${currentMode === 'vuln' ? '🔀' : '🔒'}</span> ${currentMode === 'vuln' ? 'Place Order' : 'Place Secure Order'}`;
+  }
+
+  function renderOrderLog(orders) {
+    const log = document.getElementById('orderLog');
+    log.innerHTML = '';
+    orders.forEach(o => {
+      const row = document.createElement('div');
+      row.className = 'order-row ' + (o.tampered ? 'tampered-row' : 'legit-row');
+      const statusTag = o.tampered
+        ? '<span class="tag danger" style="font-size:0.65rem">TAMPERED</span>'
+        : '<span class="tag info"   style="font-size:0.65rem">OK</span>';
+      row.innerHTML = `
+        <span style="font-size:0.8rem; color:var(--text-primary)">${o.product_name.substring(0,18)}</span>
+        <span class="text-muted">₹${Number(o.real_price).toLocaleString('en-IN')}</span>
+        <span class="${o.tampered ? 'text-red' : 'text-green'}">₹${Number(o.paid_price).toLocaleString('en-IN')}</span>
+        <span>${statusTag}</span>`;
+      log.appendChild(row);
+    });
+  }
+</script>
+{% endblock %}

@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RSA Encryption & Decryption</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 30px auto;
+            padding: 0 20px;
+            background-color: #f4f6f9;
+            color: #333;
+        }
+        h2 {
+            color: #2c3e50;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 8px;
+        }
+        .card {
+            background: #fff;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        textarea, input {
+            width: 100%;
+            padding: 10px;
+            margin-top: 8px;
+            margin-bottom: 12px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+            font-family: monospace;
+        }
+        button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 18px;
+            font-size: 14px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 8px;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        button:disabled {
+            background-color: #bdc3c7;
+            cursor: not-allowed;
+        }
+        .output {
+            word-break: break-all;
+            background: #eef2f5;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            min-height: 20px;
+        }
+    </style>
+</head>
+<body>
+
+    <h2>RSA Encryption & Decryption Tool</h2>
+
+    <!-- Step 1: Key Generation -->
+    <div class="card">
+        <h3>1. Key Pair Generation</h3>
+        <button id="generate-btn" onclick="generateKeys()">Generate RSA Key Pair (2048-bit)</button>
+        <span id="key-status" style="margin-left: 10px; color: #7f8c8d;">No keys generated yet.</span>
+    </div>
+
+    <!-- Step 2: Encryption -->
+    <div class="card">
+        <h3>2. Encrypt Message</h3>
+        <label for="plaintext">Plaintext Message:</label>
+        <textarea id="plaintext" rows="3" placeholder="Enter message to encrypt...">Hello, RSA Security!</textarea>
+        <button id="encrypt-btn" onclick="encryptMessage()" disabled>Encrypt</button>
+        
+        <h4>Ciphertext (Base64 Encoded):</h4>
+        <div id="ciphertext" class="output">---</div>
+    </div>
+
+    <!-- Step 3: Decryption -->
+    <div class="card">
+        <h3>3. Decrypt Message</h3>
+        <button id="decrypt-btn" onclick="decryptMessage()" disabled>Decrypt Ciphertext Above</button>
+        
+        <h4>Decrypted Plaintext:</h4>
+        <div id="decrypted-text" class="output">---</div>
+    </div>
+
+    <script>
+        let keyPair = null;
+        let lastEncryptedBuffer = null;
+
+        // 1. Generate RSA-OAEP 2048-bit Key Pair
+        async function generateKeys() {
+            const statusLabel = document.getElementById("key-status");
+            statusLabel.textContent = "Generating key pair... Please wait.";
+
+            try {
+                keyPair = await window.crypto.subtle.generateKey(
+                    {
+                        name: "RSA-OAEP",
+                        modulusLength: 2048,
+                        publicExponent: new Uint8Array([1, 0, 1]), // 65537
+                        hash: "SHA-256"
+                    },
+                    true, // Extractable keys
+                    ["encrypt", "decrypt"]
+                );
+
+                statusLabel.textContent = "✅ RSA Key Pair successfully generated!";
+                statusLabel.style.color = "#27ae60";
+
+                document.getElementById("encrypt-btn").disabled = false;
+            } catch (err) {
+                console.error(err);
+                statusLabel.textContent = "❌ Failed to generate key pair.";
+                statusLabel.style.color = "#c0392b";
+            }
+        }
+
+        // 2. Encrypt Text using Public Key
+        async function encryptMessage() {
+            const plaintext = document.getElementById("plaintext").value;
+            if (!plaintext) {
+                alert("Please enter a message to encrypt.");
+                return;
+            }
+
+            try {
+                // Encode plain string into Uint8Array buffer
+                const encoder = new TextEncoder();
+                const data = encoder.encode(plaintext);
+
+                // Perform RSA-OAEP Encryption
+                lastEncryptedBuffer = await window.crypto.subtle.encrypt(
+                    { name: "RSA-OAEP" },
+                    keyPair.publicKey,
+                    data
+                );
+
+                // Convert encrypted ArrayBuffer to Base64 string for display
+                const base64Ciphertext = arrayBufferToBase64(lastEncryptedBuffer);
+                document.getElementById("ciphertext").textContent = base64Ciphertext;
+                document.getElementById("decrypt-btn").disabled = false;
+            } catch (err) {
+                console.error(err);
+                alert("Encryption failed: " + err.message);
+            }
+        }
+
+        // 3. Decrypt Text using Private Key
+        async function decryptMessage() {
+            if (!lastEncryptedBuffer) {
+                alert("No ciphertext available to decrypt.");
+                return;
+            }
+
+            try {
+                // Perform RSA-OAEP Decryption
+                const decryptedBuffer = await window.crypto.subtle.decrypt(
+                    { name: "RSA-OAEP" },
+                    keyPair.privateKey,
+                    lastEncryptedBuffer
+                );
+
+                // Decode decrypted ArrayBuffer back into string
+                const decoder = new TextDecoder();
+                const decryptedText = decoder.decode(decryptedBuffer);
+
+                document.getElementById("decrypted-text").textContent = decryptedText;
+            } catch (err) {
+                console.error(err);
+                alert("Decryption failed: " + err.message);
+            }
+        }
+
+        // Utility: Convert ArrayBuffer to Base64 String
+        function arrayBufferToBase64(buffer) {
+            let binary = '';
+            const bytes = new Uint8Array(buffer);
+            const len = bytes.byteLength;
+            for (let i = 0; i < len; i++) {
+                binary += String.fromCharCode(bytes[i]);
+            }
+            return window.btoa(binary);
+        }
+    </script>
+</body>
+</html>
